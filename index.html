@@ -73,26 +73,26 @@
   #field .goal{position:absolute; bottom:-3px; left:44%; right:44%; height:5px;
     background:rgba(255,255,255,.85); border-radius:2px;}
 
-  .slot{position:absolute; width:66px; transform:translate(-50%,-50%);
+  .slot{position:absolute; width:58px; transform:translate(-50%,-50%);
     display:flex; flex-direction:column; align-items:center; gap:2px;}
-  .slot .ring{width:62px; height:44px; border-radius:9px;
+  .slot .ring{width:52px; height:38px; border-radius:8px;
     border:2px dashed rgba(255,255,255,.45);
     display:flex; align-items:center; justify-content:center;
-    color:rgba(255,255,255,.7); font-size:11px; font-weight:700; text-align:center;}
+    color:rgba(255,255,255,.7); font-size:10px; font-weight:700; text-align:center;}
   .slot.over .ring{border-color:#fff; background:rgba(255,255,255,.18); transform:scale(1.08);}
   .slot.over .token{transform:scale(1.06);}
   .slot .poslabel{font-size:9px; color:rgba(255,255,255,.85); font-weight:700;
     text-shadow:0 1px 2px rgba(0,0,0,.6);}
 
-  /* rectangular player tile */
-  .token{width:62px; height:44px; border-radius:9px; position:relative;
+  /* compact rectangular player tile (number hidden by default, shown in detail) */
+  .token{width:52px; height:38px; border-radius:8px; position:relative;
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     background:var(--us); color:#06140a; font-weight:800; box-shadow:0 2px 6px rgba(0,0,0,.45);
-    border:2px solid rgba(255,255,255,.85); touch-action:none; padding:2px 3px;}
-  .token .num{font-size:13px; line-height:1;}
-  .token .nm{font-size:9px; max-width:56px; overflow:hidden; text-overflow:ellipsis;
-    white-space:nowrap; line-height:1.1; margin-top:1px; font-weight:700;}
-  .token .ptime{position:absolute; bottom:-13px; font-size:9px; font-weight:700;
+    border:2px solid rgba(255,255,255,.85); touch-action:none; padding:1px 2px;}
+  .token .num{display:none;}
+  .token .nm{font-size:9px; max-width:48px; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap; line-height:1.1; font-weight:800;}
+  .token .ptime{position:absolute; bottom:-12px; font-size:8.5px; font-weight:700;
     color:#fff; background:rgba(0,0,0,.6); padding:0 4px; border-radius:7px;
     font-variant-numeric:tabular-nums; white-space:nowrap;}
   .token.dragging{opacity:.35;}
@@ -101,27 +101,35 @@
     text-shadow:0 1px 2px rgba(0,0,0,.7); font-weight:700;}
   .slot .ghost .arr{color:#fff;}
 
-  /* ---------- Queue banner ---------- */
-  #queuebar{background:linear-gradient(90deg,#2a1f5e,#3a2a78); border-top:1px solid #4b3aa0;
-    padding:8px 10px; display:flex; align-items:center; gap:8px;}
-  #queuebar .lbl{font-size:12px; color:#cdbfff; font-weight:700; flex:1;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  /* ---------- Field page: field (left) + roster rail (right) ---------- */
+  #pageField{flex-direction:row;}
+  #fieldcol{flex:1; display:flex; flex-direction:column; min-width:0;}
+  #roster-rail{flex:0 0 120px; background:var(--panel); border-left:1px solid var(--line);
+    display:flex; flex-direction:column; min-height:0;}
+  .railhdr{display:flex; align-items:center; gap:4px; padding:6px 6px 4px; flex-wrap:wrap;}
+  .railhdr .t{font-size:10px; color:var(--muted); font-weight:800; text-transform:uppercase;
+    letter-spacing:.4px; width:100%;}
+  .railhdr .btn{padding:5px 7px; min-height:30px; font-size:11px; flex:1;}
+  #rail{flex:1; overflow-y:auto; overscroll-behavior:contain; padding:4px 6px 10px;}
+  #rail.dropping{background:rgba(47,129,247,.12); outline:2px dashed var(--accent); outline-offset:-4px;}
+  .railtile{display:flex; align-items:center; gap:6px; padding:5px 5px; border-radius:8px;
+    border:1px solid var(--line); background:var(--panel2); margin-bottom:5px; touch-action:none;}
+  .railtile .stripe{flex:0 0 5px; align-self:stretch; border-radius:3px; min-height:30px;}
+  .railtile .info{flex:1; min-width:0;}
+  .railtile .nm{font-size:11px; font-weight:800; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+  .railtile .sub{font-size:9px; color:var(--muted); font-variant-numeric:tabular-nums; white-space:nowrap;}
+  .railtile.onfield{opacity:.5;}
+  .railtile.onfield .sub{color:var(--us); font-weight:700;}
+  .railtile.queued{outline:2px solid var(--queue); outline-offset:1px; opacity:1;}
+  .railtile.queued .sub{color:#cdbfff;}
+  .railtile.absent{opacity:.3;}
+  .railtile .capc2{flex:0 0 auto; color:#e3b341; font-weight:900; font-size:11px;}
 
-  /* ---------- Bench ---------- */
-  #benchwrap{background:var(--panel); border-top:1px solid var(--line);
-    padding:8px 8px calc(8px + env(safe-area-inset-bottom));}
-  .benchhdr{display:flex; align-items:center; gap:8px; margin-bottom:6px;}
-  .benchhdr .t{font-size:12px; color:var(--muted); font-weight:700; text-transform:uppercase;
-    letter-spacing:.5px;}
-  .benchhdr .spacer{flex:1;}
-  #bench{display:flex; gap:8px; overflow-x:auto; padding:4px 2px 8px;
-    scrollbar-width:thin; min-height:78px;}
-  #bench.empty{align-items:center; justify-content:center; color:var(--faint); font-size:13px;}
-  .benchtile{flex:0 0 auto; width:64px; display:flex; flex-direction:column;
-    align-items:center; gap:3px;}
-  .benchtile .token{background:var(--panel2); color:var(--ink); border-color:var(--line);}
-  .benchtile .bt{font-size:9px; color:var(--muted); font-variant-numeric:tabular-nums;}
-  .benchtile.queued .token{outline:2px solid var(--queue); outline-offset:2px; opacity:.6;}
+  /* ---------- Queue banner (slim, under field) ---------- */
+  #queuebar{background:linear-gradient(90deg,#2a1f5e,#3a2a78); border-top:1px solid #4b3aa0;
+    padding:7px 8px; display:flex; align-items:center; gap:6px;}
+  #queuebar .lbl{font-size:11px; color:#cdbfff; font-weight:700; flex:1;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
 
   /* drag clone */
   #dragclone{position:fixed; z-index:9999; pointer-events:none; transform:translate(-50%,-50%);
@@ -179,11 +187,10 @@
 
   /* ---------- Pager (transform-based: no accidental scroll while dragging) ---------- */
   #pager{flex:1; overflow:hidden; position:relative;}
-  #pages{display:flex; flex-direction:column; height:200%;
+  #pages{display:flex; flex-direction:column; height:300%;
     transform:translateY(0); transition:transform .26s ease;}
-  #pages.p1{transform:translateY(-50%);}
-  .page{height:50%; display:flex; flex-direction:column; min-height:0;}
-  #pageData{overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;}
+  .page{height:33.3333%; display:flex; flex-direction:column; min-height:0;}
+  #pageData,#pageTeam{overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;}
   .swipehint{position:absolute; bottom:2px; left:50%; transform:translateX(-50%);
     font-size:10px; color:var(--faint); pointer-events:none;}
 
@@ -197,7 +204,7 @@
   #lockBtn.locked{color:var(--warn);}
 
   /* layout-edit mode */
-  body.editing #benchwrap,body.editing #queuebar{opacity:.35; pointer-events:none;}
+  body.editing #roster-rail,body.editing #queuebar{opacity:.35; pointer-events:none;}
   .editbanner{position:absolute; top:8px; left:8px; right:8px; z-index:30;
     background:#1c2b1f; border:1px solid var(--us); border-radius:10px; padding:8px 10px;
     display:flex; align-items:center; gap:8px; font-size:13px; font-weight:600;}
@@ -230,6 +237,18 @@
   .bar>i{display:block; height:100%; background:var(--accent);}
   .absent .av{filter:grayscale(1) brightness(.6);}
   .absent .nm{color:var(--faint); text-decoration:line-through;}
+
+  /* ---------- Team page ---------- */
+  #pageTeam{padding:12px 12px calc(20px + env(safe-area-inset-bottom));}
+  #pageTeam h3{margin:14px 0 7px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;}
+  #pageTeam h3:first-of-type{margin-top:6px;}
+  td.pos{color:var(--muted); font-size:11px;}
+  td.pm.pos-v{color:var(--us);} td.pm.neg-v{color:var(--them);}
+  .plusminus{font-weight:800;}
+  /* playtime adjust controls */
+  .adjrow{display:flex; gap:6px; margin:6px 0;}
+  .adjrow button{flex:1; padding:9px 4px; font-size:13px; font-weight:800;}
+  .adjrow .minus{color:var(--them);} .adjrow .plus{color:var(--us);}
 </style>
 </head>
 <body>
@@ -264,49 +283,53 @@
 <main id="pager">
  <div id="pages">
   <section class="page" id="pageField">
-    <div id="fieldwrap">
-      <div id="field">
-        <div class="centercircle"></div>
-        <div class="midline"></div>
-        <div class="pbox"></div>
-        <div class="gbox"></div>
-        <div class="goal"></div>
-        <!-- slots injected -->
+    <div id="fieldcol">
+      <div id="fieldwrap">
+        <div id="field">
+          <div class="centercircle"></div>
+          <div class="midline"></div>
+          <div class="pbox"></div>
+          <div class="gbox"></div>
+          <div class="goal"></div>
+          <!-- slots injected -->
+        </div>
+        <div class="editbanner hidden" id="editBanner">
+          <span class="grow">Drag positions to arrange your formation</span>
+          <button class="btn sm primary" id="editDone">Done</button>
+        </div>
       </div>
-      <div class="editbanner hidden" id="editBanner">
-        <span class="grow">Drag positions to arrange your formation</span>
-        <button class="btn sm primary" id="editDone">Done</button>
+      <div id="queuebar" class="hidden">
+        <div class="lbl" id="queueLbl"></div>
+        <button class="btn sm ghost" id="clearQueue">Clear</button>
+        <button class="btn sm go" id="commitSubs">Send in ▶</button>
       </div>
     </div>
 
-    <div id="queuebar" class="hidden">
-      <div class="lbl" id="queueLbl"></div>
-      <button class="btn sm ghost" id="clearQueue">Clear</button>
-      <button class="btn sm go" id="commitSubs">Send in ▶</button>
-    </div>
-
-    <div id="benchwrap">
-      <div class="benchhdr">
-        <span class="t">Bench</span>
-        <span class="small muted" id="benchCount"></span>
-        <span class="spacer"></span>
-        <button class="btn sm ghost" id="addQuickBtn">＋ Add</button>
-        <button class="btn sm ghost" id="attendBtn">Here?</button>
-        <button class="btn sm ghost" id="rosterBtn">Roster</button>
+    <div id="roster-rail">
+      <div class="railhdr">
+        <span class="t" id="benchCount">Roster</span>
+        <button class="btn ghost" id="addQuickBtn">＋</button>
+        <button class="btn ghost" id="attendBtn">Here?</button>
+        <button class="btn ghost" id="rosterBtn">Edit</button>
       </div>
-      <div id="bench"></div>
+      <div id="rail"></div>
     </div>
   </section>
 
   <section class="page" id="pageData">
     <!-- injected by renderData() -->
   </section>
+
+  <section class="page" id="pageTeam">
+    <!-- injected by renderTeam() -->
+  </section>
  </div>
 </main>
 
 <nav id="tabbar">
   <button data-page="0" class="on" id="tabField">⚽ Field</button>
-  <button data-page="1" id="tabData">📊 Game data</button>
+  <button data-page="1" id="tabData">📊 Game</button>
+  <button data-page="2" id="tabTeam">👥 Team</button>
 </nav>
 
 <div id="dragclone"></div>
@@ -391,6 +414,7 @@ function freshGame(){
     absent:[],                // playerIds not present this game
     captains:[],              // playerIds chosen as captains this game
     notes:"",                 // free-text game notes
+    adjust:{},                // playerId -> manual playtime correction in ms (+/-)
   };
 }
 function load(){
@@ -403,7 +427,7 @@ function load(){
 function migrate(s){
   s.history=s.history||[]; if(!s.games)s.games=[];
   s.defaultLineup=s.defaultLineup||null;   // {formation, slots:{slotId:pid}}
-  for(const g of s.games){ g.absent=g.absent||[]; g.captains=g.captains||[]; g.notes=g.notes||""; }
+  for(const g of s.games){ g.absent=g.absent||[]; g.captains=g.captains||[]; g.notes=g.notes||""; g.adjust=g.adjust||{}; }
 }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify({...S, history:undefined})); }
 function uid(){ return Math.random().toString(36).slice(2,9); }
@@ -443,7 +467,18 @@ function playtime(pid, at=gameMs()){
     const end = st.offAt==null ? at : st.offAt;
     tot += Math.max(0,end-st.onAt);
   }
-  return tot;
+  tot += (G.adjust && G.adjust[pid]) || 0;   // manual correction (injury you missed, etc.)
+  return Math.max(0,tot);
+}
+// +/- : goal differential while this player was on the field (this game)
+function plusMinus(pid, g=G, at=null){
+  const now = at==null ? (g===G?gameMs():g.clock.accumMs) : at;
+  let pm=0;
+  for(const gl of g.goals){
+    const onAtGoal = g.stints.some(s=>s.playerId===pid && s.onAt<=gl.atMs && (s.offAt==null?now:s.offAt)>=gl.atMs);
+    if(onAtGoal) pm += (gl.team==="us"?1:-1);
+  }
+  return pm;
 }
 function isOnField(pid){ return Object.values(G.onField).includes(pid); }
 function slotOf(pid){ for(const k in G.onField) if(G.onField[k]===pid) return k; return null; }
@@ -611,7 +646,7 @@ function benchPlayers(){
 //==================================================================
 //  Rendering
 //==================================================================
-function renderAll(){ renderTop(); renderField(); renderQueue(); renderBench(); renderData(); }
+function renderAll(){ renderTop(); renderField(); renderQueue(); renderRail(); renderData(); renderTeam(); }
 
 function renderTop(){
   $("#usName").textContent=S.teamName||"Our Team";
@@ -680,24 +715,42 @@ function renderQueue(){
   $("#queueLbl").textContent=G.queue.length+" queued: "+names;
 }
 
-function renderBench(){
-  const b=$("#bench");
-  b.innerHTML="";
-  const list=benchPlayers();
-  $("#benchCount").textContent=list.length+" available";
-  if(!list.length){ b.classList.add("empty"); b.textContent="Everyone's on the field"; return; }
-  b.classList.remove("empty");
-  // sort: queued first, then least playtime (so under-played kids surface)
-  list.sort((a,b2)=> (isQueuedIn(b2.id)-isQueuedIn(a.id)) || (playtime(a.id)-playtime(b2.id)));
+// Right-side roster rail: EVERY present player; on-field ones faded with a running timer.
+function renderRail(){
+  const rail=$("#rail");
+  rail.innerHTML="";
+  const onCount=Object.keys(G.onField).length;
+  $("#benchCount").textContent="On field "+onCount+"/9";
+  const list=presentPlayers().slice().sort((a,b2)=>{
+    // bench (subbable) first, queued pinned to top of bench, then least playtime; on-field sink to bottom
+    const aOn=isOnField(a.id), bOn=isOnField(b2.id);
+    if(aOn!==bOn) return aOn-bOn;
+    if(!aOn) return (isQueuedIn(b2.id)-isQueuedIn(a.id)) || (playtime(a.id)-playtime(b2.id));
+    return playtime(a.id)-playtime(b2.id);
+  });
   for(const p of list){
-    const tile=el("div","benchtile"+(isQueuedIn(p.id)?" queued":""));
-    const tok=makeToken(p.id,false);
-    tok.dataset.source="bench";
-    tok.classList.remove("token"); tok.classList.add("token"); // keep class
-    tile.appendChild(tok);
-    const bt=el("div","bt", G.started? ("⏱ "+fmtMin(benchTime(p.id))) : ("#"+p.number));
-    tile.appendChild(bt);
-    b.appendChild(tile);
+    const on=isOnField(p.id), q=isQueuedIn(p.id);
+    const t=el("div","railtile"+(on?" onfield":"")+(q?" queued":""));
+    t.dataset.player=p.id; t.dataset.source = on ? "field" : "bench";
+    const stripe=el("div","stripe"); stripe.style.background=p.color; t.appendChild(stripe);
+    const info=el("div","info");
+    info.appendChild(el("div","nm",p.name));
+    let sub;
+    if(on) sub="● "+slotOf(p.id)+" · "+fmt(playtime(p.id));
+    else if(q) sub="↑ coming on";
+    else sub = G.started ? ("bench "+fmtMin(benchTime(p.id))+" · "+fmt(playtime(p.id))) : "ready";
+    info.appendChild(el("div","sub",sub));
+    t.appendChild(info);
+    if(isCaptain(p.id)) t.appendChild(el("div","capc2","C"));
+    rail.appendChild(t);
+  }
+  // absent players shown dimmed at the very bottom
+  for(const p of S.roster.filter(x=>isAbsent(x.id))){
+    const t=el("div","railtile absent"); t.dataset.player=p.id;
+    const stripe=el("div","stripe"); stripe.style.background=p.color; t.appendChild(stripe);
+    const info=el("div","info"); info.appendChild(el("div","nm",p.name));
+    info.appendChild(el("div","sub","absent")); t.appendChild(info);
+    rail.appendChild(t);
   }
 }
 
@@ -786,6 +839,54 @@ function toggleCaptain(pid){
   save(); renderAll();
 }
 
+// ---- Team page: per-player table (this game OR season), with +/- ----
+let teamScope="game";
+function renderTeam(){
+  const pg=$("#pageTeam"); pg.innerHTML="";
+  const seg=el("div","seg");
+  [["game","This game"],["season","Season"]].forEach(([k,lbl])=>{
+    const b=el("button",teamScope===k?"on":"",lbl); b.onclick=()=>{teamScope=k; renderTeam();}; seg.appendChild(b);
+  });
+  pg.appendChild(seg);
+  pg.appendChild(el("h3",null, teamScope==="game"
+    ? ((S.teamName||"Us")+" vs "+G.opponent+"  "+G.score.us+"–"+G.score.them)
+    : (S.games.length+" game"+(S.games.length===1?"":"s")+" tracked")));
+
+  let rows;
+  if(teamScope==="game"){
+    rows=S.roster.map(p=>{
+      const pos={}; G.stints.filter(s=>s.playerId===p.id).forEach(s=>{pos[s.slot]=(pos[s.slot]||0)+((s.offAt==null?gameMs():s.offAt)-s.onAt);});
+      return {p, min:playtime(p.id),
+        goals:G.goals.filter(g=>g.scorerId===p.id).length,
+        assists:G.goals.filter(g=>g.assistId===p.id).length,
+        pm:plusMinus(p.id), pos};
+    });
+  }else{
+    const {agg}=seasonAgg();
+    rows=S.roster.map(p=>{const a=agg[p.id]; return {p,min:a.min,goals:a.goals,assists:a.assists,pm:a.pm,pos:a.pos};});
+  }
+  rows.sort((a,b)=>b.min-a.min);
+  const tbl=el("table");
+  tbl.innerHTML="<tr><th>Player</th><th class='num'>Min</th><th class='num'>G</th><th class='num'>A</th><th class='num'>+/-</th><th>Pos</th></tr>";
+  rows.forEach(r=>{
+    const topPos=Object.entries(r.pos||{}).sort((a,b)=>b[1]-a[1])[0];
+    const col=r.pm>0?"var(--us)":(r.pm<0?"var(--them)":"var(--muted)");
+    const tr=el("tr");
+    tr.innerHTML=`<td>${esc(r.p.name)}</td><td class='num'>${Math.round(r.min/60000)}</td>`+
+      `<td class='num'>${r.goals}</td><td class='num'>${r.assists}</td>`+
+      `<td class='num plusminus' style='color:${col}'>${r.pm>0?"+":""}${r.pm}</td>`+
+      `<td class='pos'>${topPos?esc(topPos[0]):"—"}</td>`;
+    tr.onclick=()=>openPlayer(r.p.id);
+    tbl.appendChild(tr);
+  });
+  pg.appendChild(tbl);
+  pg.appendChild(el("p","muted small","Tap a player for details, position breakdown, and playtime fixes. +/- = our goals minus theirs while on the field."));
+  const ex=el("div","row"); ex.style.marginTop="10px";
+  const a=el("button","btn grow","Export season CSV"); a.onclick=exportSeasonCSV;
+  const b=el("button","btn","Pairs & captains"); b.onclick=openSeason;
+  ex.appendChild(a); ex.appendChild(b); pg.appendChild(ex);
+}
+
 function textOn(hex){
   try{ const c=hex.replace("#",""); const r=parseInt(c.slice(0,2),16),g=parseInt(c.slice(2,4),16),bl=parseInt(c.slice(4,6),16);
     return (r*299+g*587+bl*114)/1000>140?"#06140a":"#fff"; }catch(e){return "#fff";}
@@ -800,15 +901,15 @@ const clone=$("#dragclone");
 
 function onPointerDown(e){
   if(editing){ startSlotDrag(e); return; }   // edit mode: drag positions, not players
-  const tok=e.target.closest(".token");
+  const tok=e.target.closest("[data-player]");
   if(!tok || !tok.dataset.player) return;
-  // ignore if interacting with a ghost/label
-  const pid=tok.dataset.player, source=tok.dataset.source;
+  const pid=tok.dataset.player, source=tok.dataset.source||"absent";
   const t = e.touches?e.touches[0]:e;
   drag={pid, source, startX:t.clientX, startY:t.clientY, moved:false, srcTok:tok};
-  // build clone
-  const c=tok.cloneNode(true);
-  c.querySelector(".ptime")?.remove();
+  // uniform compact drag clone
+  const p=player(pid);
+  const c=el("div","token"); c.style.background=p?p.color:"#888"; c.style.color=textOn(p?p.color:"#888");
+  c.appendChild(el("div","nm",p?p.name:"?"));
   clone.innerHTML=""; clone.appendChild(c);
   clone.style.left=t.clientX+"px"; clone.style.top=t.clientY+"px";
   window.addEventListener("pointermove",onPointerMove,{passive:false});
@@ -822,25 +923,29 @@ function onPointerMove(e){
   if(!drag.moved){ drag.moved=true; clone.style.display="block"; drag.srcTok.classList.add("dragging"); }
   e.preventDefault();
   clone.style.left=t.clientX+"px"; clone.style.top=t.clientY+"px";
-  // highlight slot under pointer
+  // highlight slot or rail (bench) under pointer
   document.querySelectorAll(".slot.over").forEach(s=>s.classList.remove("over"));
   const tgt=slotUnder(t.clientX,t.clientY);
   if(tgt) tgt.classList.add("over");
+  const overRail = !tgt && drag.source!=="bench" && !!document.elementFromPoint(t.clientX,t.clientY)?.closest("#roster-rail");
+  $("#rail").classList.toggle("dropping", overRail);
 }
 function onPointerUp(e){
   window.removeEventListener("pointermove",onPointerMove);
   window.removeEventListener("pointerup",onPointerUp);
   clone.style.display="none";
   document.querySelectorAll(".slot.over").forEach(s=>s.classList.remove("over"));
+  $("#rail").classList.remove("dropping");
   if(drag) drag.srcTok.classList.remove("dragging");
   if(!drag){ return; }
   const d=drag; drag=null;
-  if(!d.moved){ openPlayer(d.pid); return; } // tap = open detail
+  if(!d.moved){ openPlayer(d.pid); return; }      // tap = open detail
+  if(d.source==="absent") return;                  // absent players aren't draggable
   const t=e;
   const slot=slotUnder(t.clientX,t.clientY);
-  const benchEl=document.elementFromPoint(t.clientX,t.clientY)?.closest("#benchwrap");
+  const railEl=document.elementFromPoint(t.clientX,t.clientY)?.closest("#roster-rail");
   if(slot){ dropOnSlot(d.pid, slot.dataset.slot, d.source); }
-  else if(benchEl && d.source!=="bench"){ benchPlayer(d.pid); }
+  else if(railEl && d.source!=="bench"){ benchPlayer(d.pid); }  // drop onto rail = take off
 }
 function slotUnder(x,y){
   const elx=document.elementFromPoint(x,y);
@@ -872,17 +977,26 @@ function sheet(title, build){
 function closeSheet(){ $("#scrim")?.remove(); }
 
 // ---- Player detail ----
+function adjustPlaytime(pid, delta){
+  pushUndo();
+  G.adjust[pid]=(G.adjust[pid]||0)+delta;
+  if(G.adjust[pid]===0) delete G.adjust[pid];
+  save(); renderAll(); openPlayer(pid);   // reopen to refresh numbers
+  toast(pName(pid)+": "+(delta>0?"+":"−")+fmt(Math.abs(delta))+" playtime");
+}
 function openPlayer(pid){
   const p=player(pid);
   sheet(p.name+"  #"+p.number, sh=>{
-    const on=isOnField(pid);
+    const on=isOnField(pid), absent=isAbsent(pid);
     const sg=el("div","statgrid");
     sg.appendChild(stat("Playtime", fmt(playtime(pid))));
-    sg.appendChild(stat(on?"On field":"On bench", on? "since "+fmt(playtime(pid)) : (G.started?fmt(benchTime(pid)):"—")));
+    sg.appendChild(stat(absent?"Status":(on?"On field":"On bench"),
+      absent?"Absent": (on? slotOf(pid) : (G.started?"off "+fmtMin(benchTime(pid)):"—"))));
     const goals=G.goals.filter(g=>g.scorerId===pid).length;
     const assists=G.goals.filter(g=>g.assistId===pid).length;
-    sg.appendChild(stat("Goals", goals));
-    sg.appendChild(stat("Assists", assists));
+    const pm=plusMinus(pid);
+    sg.appendChild(stat("Goals / Assists", goals+" / "+assists));
+    sg.appendChild(stat("+/- (on field)", (pm>0?"+":"")+pm));
     sh.appendChild(sg);
 
     const positions={};
@@ -896,19 +1010,41 @@ function openPlayer(pid){
       sh.appendChild(tbl);
     }
 
+    // ---- Fix playtime (missed a sub, injury, late catch) ----
+    sh.appendChild(el("h3",null,"Fix playtime — as if subbed earlier"));
+    const cur=G.adjust[pid]||0;
+    sh.appendChild(el("p","muted small", cur? ("Current correction: "+(cur<0?"−":"+")+fmt(Math.abs(cur))) : "Nudge a player's minutes up or down in 30-second steps."));
+    const adj=el("div","adjrow");
+    [[-60000,"−1:00"],[-30000,"−0:30"],[30000,"+0:30"],[60000,"+1:00"]].forEach(([d,lbl])=>{
+      const b=el("button","btn "+(d<0?"minus":"plus"),lbl); b.onclick=()=>adjustPlaytime(pid,d); adj.appendChild(b);
+    });
+    sh.appendChild(adj);
+
     sh.appendChild(el("h3",null,"Actions"));
     const row=el("div","row");
-    if(on){
+    if(absent){
+      const b=el("button","btn grow primary","Mark present");
+      b.onclick=()=>{ pushUndo(); G.absent=G.absent.filter(x=>x!==pid); save(); renderAll(); closeSheet(); };
+      row.appendChild(b);
+    }else if(on){
       const b=el("button","btn grow","Take off → Bench"); b.onclick=()=>{benchPlayer(pid);closeSheet();};
       row.appendChild(b);
     }else{
-      const b=el("button","btn grow primary","Quick add to open spot");
-      b.onclick=()=>{ const open=firstOpenSlot(); if(open){dropOnSlot(pid,open,"bench");closeSheet();} else toast("No open position — drag onto a player to sub"); };
+      const b=el("button","btn grow primary","Put in (open spot)");
+      b.onclick=()=>{ const open=firstOpenSlot(); if(open){dropOnSlot(pid,open,"bench");closeSheet();} else toast("No open spot — drag onto a player to sub"); };
       row.appendChild(b);
     }
     const g=el("button","btn","⚽ Goal"); g.onclick=()=>{closeSheet(); openGoalSheet(pid);};
     row.appendChild(g);
     sh.appendChild(row);
+    if(!absent){
+      const r2=el("div","row");
+      const cap=el("button","btn grow"+(isCaptain(pid)?" primary":""), isCaptain(pid)?"★ Captain":"Make captain");
+      cap.onclick=()=>{ toggleCaptain(pid); openPlayer(pid); };
+      const ab=el("button","btn","Mark absent");
+      ab.onclick=()=>{ if(on){toast("Take them off the field first"); return;} pushUndo(); G.absent.push(pid); G.queue=G.queue.filter(q=>q.playerId!==pid); save(); renderAll(); closeSheet(); };
+      r2.appendChild(cap); r2.appendChild(ab); sh.appendChild(r2);
+    }
   });
 }
 function stat(k,v){ const s=el("div","stat"); s.appendChild(el("div","k",k)); s.appendChild(el("div","v",String(v))); return s; }
@@ -1171,7 +1307,7 @@ function openGoalsLog(){
 function seasonAgg(){
   const agg={}; // pid -> {min, goals, assists, games}
   const pairs={}; // "a|b" -> shared ms
-  for(const p of S.roster) agg[p.id]={min:0,goals:0,assists:0,games:0,captain:0};
+  for(const p of S.roster) agg[p.id]={min:0,goals:0,assists:0,games:0,captain:0,pm:0,pos:{}};
   for(const g of S.games){
     for(const cid of (g.captains||[])) if(agg[cid]) agg[cid].captain++;
     const end = g.clock.accumMs; // committed game time (no live add for past games)
@@ -1180,13 +1316,19 @@ function seasonAgg(){
     for(const st of g.stints){
       const off = st.offAt==null? Math.max(end,st.onAt) : st.offAt;
       const dur=Math.max(0,off-st.onAt);
-      if(agg[st.playerId]){ agg[st.playerId].min+=dur; seen.add(st.playerId); }
+      if(agg[st.playerId]){ agg[st.playerId].min+=dur; seen.add(st.playerId);
+        agg[st.playerId].pos[st.slot]=(agg[st.playerId].pos[st.slot]||0)+dur; }
       (intervals[st.playerId]=intervals[st.playerId]||[]).push([st.onAt,off]);
     }
+    for(const pid in (g.adjust||{})) if(agg[pid]) agg[pid].min+=g.adjust[pid];
     for(const pid of seen) if(agg[pid]) agg[pid].games++;
     for(const gl of g.goals){
       if(gl.scorerId&&agg[gl.scorerId])agg[gl.scorerId].goals++;
       if(gl.assistId&&agg[gl.assistId])agg[gl.assistId].assists++;
+      const sign=gl.team==="us"?1:-1;
+      for(const pid in intervals){
+        if(intervals[pid].some(([a,b])=>a<=gl.atMs && b>=gl.atMs) && agg[pid]) agg[pid].pm+=sign;
+      }
     }
     // co-play overlap
     const ids=Object.keys(intervals);
@@ -1351,11 +1493,13 @@ $("#addQuickBtn").onclick=()=>editPlayer(null);
 
 // ---- Page navigation: Field <-> Game data ----
 let curPage=0, locked=true;
+const PAGE_COUNT=3, PAGE_EL=["#pageField","#pageData","#pageTeam"];
 function setPage(i){
   curPage=i;
-  $("#pages").classList.toggle("p1", i===1);
+  $("#pages").style.transform="translateY(-"+(i*100/PAGE_COUNT)+"%)";
   document.querySelectorAll("#tabbar button").forEach((b,j)=>b.classList.toggle("on", j===i));
   if(i===1) renderData();
+  if(i===2) renderTeam();
 }
 document.querySelectorAll("#tabbar button").forEach(b=>b.onclick=()=>setPage(+b.dataset.page));
 $("#lockBtn").onclick=()=>{
@@ -1377,8 +1521,11 @@ pager.addEventListener("pointermove",e=>{
   if(!swipe) return;
   const dy=e.clientY-swipe.y;
   if(Math.abs(dy)<70) return;
-  if(dy<0 && curPage===0) setPage(1);
-  else if(dy>0 && curPage===1 && $("#pageData").scrollTop<=0) setPage(0);
+  const cur=$(PAGE_EL[curPage]);
+  const atBottom = curPage===0 || cur.scrollTop+cur.clientHeight >= cur.scrollHeight-2;
+  const atTop = cur.scrollTop<=0;
+  if(dy<0 && curPage<PAGE_COUNT-1 && atBottom) setPage(curPage+1);
+  else if(dy>0 && curPage>0 && atTop) setPage(curPage-1);
   swipe=null;
 });
 window.addEventListener("pointerup",()=>swipe=null);
@@ -1430,10 +1577,15 @@ $("#clearQueue").onclick=()=>{ pushUndo(); G.queue=[]; save(); renderAll(); };
 setInterval(()=>{
   if(document.hidden) return;
   $("#clock").textContent=fmt(gameMs());
-  if(G.clock.running){
-    // update on-field token timers + bench timers in place (cheap)
+  if(G.clock.running && !drag){
+    // update on-field token timers in place (cheap)
     document.querySelectorAll(".token[data-source='field'] .ptime").forEach(elt=>{
       const pid=elt.closest(".token").dataset.player; elt.textContent=fmt(playtime(pid));
+    });
+    // update rail on-field timers in place
+    document.querySelectorAll("#rail .railtile.onfield").forEach(t=>{
+      const pid=t.dataset.player, s=t.querySelector(".sub");
+      if(s) s.textContent="● "+slotOf(pid)+" · "+fmt(playtime(pid));
     });
   }
 },1000);
