@@ -588,9 +588,9 @@ function gkTime(pid, at=gameMs()){
 function outfieldTime(pid, at=gameMs()){ return Math.max(0, playtime(pid,at)-gkTime(pid,at)); }
 // close current open stint and open a new one at newSlot (accurate per-position time)
 function splitStint(pid,newSlot){
-  const at=gameMs();
-  for(let i=G.stints.length-1;i>=0;i--) if(G.stints[i].playerId===pid && G.stints[i].offAt==null){ G.stints[i].offAt=at; break; }
-  G.stints.push({playerId:pid, slot:newSlot, onAt:at, offAt:null});
+  const at=gameMs(), now=Date.now();
+  for(let i=G.stints.length-1;i>=0;i--) if(G.stints[i].playerId===pid && G.stints[i].offAt==null){ G.stints[i].offAt=at; G.stints[i].tOff=now; break; }
+  G.stints.push({playerId:pid, slot:newSlot, onAt:at, offAt:null, period:G.clock.period, tOn:now, tOff:null});
 }
 const SAFE_GREEN="#3fb950";
 // playtime for ANY game object (the active game uses the live clock)
@@ -618,11 +618,11 @@ function undo(){
 }
 
 function startStint(pid, slot){
-  G.stints.push({playerId:pid, slot, onAt:gameMs(), offAt:null});
+  G.stints.push({playerId:pid, slot, onAt:gameMs(), offAt:null, period:G.clock.period, tOn:Date.now(), tOff:null});
 }
 function endStint(pid){
   for(let i=G.stints.length-1;i>=0;i--){
-    if(G.stints[i].playerId===pid && G.stints[i].offAt==null){ G.stints[i].offAt=gameMs(); break; }
+    if(G.stints[i].playerId===pid && G.stints[i].offAt==null){ G.stints[i].offAt=gameMs(); G.stints[i].tOff=Date.now(); break; }
   }
   G.benchOffAt[pid]=gameMs();
 }
@@ -761,8 +761,8 @@ function startNextPeriod(){
 function endGame(){
   pushUndo(); const c=G.clock;
   if(c.running){ c.accumMs+=Date.now()-c.lastStart; c.running=false; }
-  const at=gameMs();
-  G.stints.forEach(s=>{ if(s.offAt==null) s.offAt=at; });  // close open stints
+  const at=gameMs(), now=Date.now();
+  G.stints.forEach(s=>{ if(s.offAt==null){ s.offAt=at; s.tOff=now; } });  // close open stints
   G.done=true; c.atBreak=false; save(); renderAll(); toast("Game ended");
 }
 function reopenGame(){
@@ -991,10 +991,11 @@ function renderData(){
   pg.appendChild(el("h3",null,"Export"));
   const ex=el("div","row");
   const a=el("button","btn grow","Game CSV"); a.onclick=exportGameCSV;
-  const b=el("button","btn","Season"); b.onclick=openSeason;
+  const sl=el("button","btn","Shifts"); sl.onclick=()=>exportShiftLog();
   const c=el("button","btn","JSON"); c.onclick=exportJSON;
-  ex.appendChild(a); ex.appendChild(b); ex.appendChild(c);
+  ex.appendChild(a); ex.appendChild(sl); ex.appendChild(c);
   pg.appendChild(ex);
+  pg.appendChild(el("p","muted small","“Shifts” = every sub in/out with time, position & duration. JSON = the complete record."));
 }
 
 function toggleCaptain(pid){
@@ -1121,6 +1122,9 @@ function openGameSheet(gid){
         });
       sh.appendChild(tbl);
       if(g.captains&&g.captains.length) sh.appendChild(el("p","muted small","Captains: "+g.captains.map(pName).join(", ")));
+      const exr=el("div","row");
+      const sl=el("button","btn grow","Export shift log (CSV)"); sl.onclick=()=>exportShiftLog(g); exr.appendChild(sl);
+      sh.appendChild(exr);
     }else{
       sh.appendChild(el("h3",null,"Format"));
       const ff=el("div","chiprow");
@@ -1654,9 +1658,10 @@ function openMenu(){
 
     sh.appendChild(el("h3",null,"Export & data"));
     const rowX=el("div","row");
-    const cj=el("button","btn grow","Export game (CSV)"); cj.onclick=()=>exportGameCSV();
+    const cj=el("button","btn grow","Game CSV"); cj.onclick=()=>exportGameCSV();
+    const sl=el("button","btn","Shift log"); sl.onclick=()=>exportShiftLog();
     const jj=el("button","btn","JSON"); jj.onclick=()=>exportJSON();
-    rowX.appendChild(cj); rowX.appendChild(jj); sh.appendChild(rowX);
+    rowX.appendChild(cj); rowX.appendChild(sl); rowX.appendChild(jj); sh.appendChild(rowX);
     const sx=el("button","btn","Season summary (all games)"); sx.style.width="100%"; sx.style.marginTop="8px";
     sx.onclick=()=>{closeSheet(); openSeason();}; sh.appendChild(sx);
 
@@ -1810,7 +1815,32 @@ function exportSeasonCSV(){
   download("season_summary.csv", rows.map(csvRow).join("\n"),"text/csv");
   toast("Season CSV exported");
 }
-function exportJSON(){ download("sideline_data.json", JSON.stringify({...S,history:undefined},null,2),"application/json"); toast("JSON exported"); }
+function exportJSON(){ download("sideline_data.json", JSON.stringify({...S,history:undefined},null,2),"application/json"); toast("JSON exported (full data incl. every shift)"); }
+
+// Detailed shift-by-shift log: every sub in/out with timestamps, position, duration.
+function exportShiftLog(g=G){
+  const end = g===G ? gameMs() : g.clock.accumMs;
+  const rt = t => t? new Date(t).toLocaleTimeString() : "";
+  const rows=[["Player","Number","Position","Period","On (clock)","Off (clock)","Shift (min)","Sub-in (real)","Sub-out (real)","Ongoing"]];
+  const stints=g.stints.slice().sort((a,b)=>a.onAt-b.onAt);
+  for(const s of stints){
+    const p=T.roster.find(x=>x.id===s.playerId);
+    const off = s.offAt==null?end:s.offAt;
+    rows.push([ p?p.name:s.playerId, p?p.number:"", s.slot, s.period||"",
+      fmt(s.onAt), s.offAt==null?"(on)":fmt(s.offAt), ((off-s.onAt)/60000).toFixed(1),
+      rt(s.tOn), rt(s.tOff), s.offAt==null?"yes":"" ]);
+  }
+  // goals timeline appended
+  rows.push([]); rows.push(["GOALS — Clock","Team","Scorer","Assist"]);
+  g.goals.slice().sort((a,b)=>a.atMs-b.atMs).forEach(gl=>{
+    rows.push([fmt(gl.atMs), gl.team==="us"?(T.name||"Us"):g.opponent, gl.scorerId?pName(gl.scorerId):"", gl.assistId?pName(gl.assistId):""]);
+  });
+  let meta="# "+(T.name||"Us")+" vs "+g.opponent+"  "+g.score.us+"-"+g.score.them+"  "+new Date(g.date).toLocaleString()+"\n";
+  meta+="# "+g.format+" · "+(g.regPeriods||2)+"x"+(g.periodMin||30)+"min · total clock "+fmt(end)+"\n";
+  if(g.shootout&&g.shootout.kicks.length) meta+="# Shootout "+g.shootout.us+"-"+g.shootout.them+"\n";
+  download("shiftlog_"+(g.opponent||"game").replace(/\W+/g,"")+"_"+g.date.slice(0,10)+".csv", meta+rows.map(csvRow).join("\n"),"text/csv");
+  toast("Shift log exported");
+}
 
 //==================================================================
 //  Dictation (Web Speech API) — falls back to phone keyboard mic
