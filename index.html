@@ -378,6 +378,7 @@
 </div><!-- /teamsView -->
 
 <div id="dragclone"></div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -485,6 +486,7 @@ function migrate(s){
   for(const t of s.teams){
     t.archived=t.archived||false; t.roster=t.roster||[]; t.games=t.games||[];
     for(const g of t.games){
+      g.clock=g.clock||{running:false,accumMs:0,lastStart:0,period:0,atBreak:false};
       g.absent=g.absent||[]; g.captains=g.captains||[]; g.notes=g.notes||""; g.adjust=g.adjust||{}; g.format=g.format||"9v9";
       g.clock.atBreak=g.clock.atBreak||false; g.regPeriods=g.regPeriods||2; g.periodMin=g.periodMin||g.periodLenMin||30;
       g.otPeriods=g.otPeriods||0; g.otMin=g.otMin||0; g.done=g.done||false; g.shootout=g.shootout||{us:0,them:0,kicks:[]};
@@ -546,7 +548,7 @@ function plusMinus(pid, g=G, at=null){
   const now = at==null ? (g===G?gameMs():g.clock.accumMs) : at;
   let pm=0;
   for(const gl of g.goals){
-    const onAtGoal = g.stints.some(s=>s.playerId===pid && s.onAt<=gl.atMs && (s.offAt==null?now:s.offAt)>=gl.atMs);
+    const onAtGoal = g.stints.some(s=>s.playerId===pid && s.onAt<=gl.atMs && (s.offAt==null?now:s.offAt)>gl.atMs);
     if(onAtGoal) pm += (gl.team==="us"?1:-1);
   }
   return pm;
@@ -667,28 +669,26 @@ function dropOnSlot(pid, slot, source){
 function commitSubs(){
   if(!G.queue.length) return;
   pushUndo();
-  const at=gameMs();
-  // First, figure displaced moves to a slot (keep on field)
+  const prev={...G.onField};          // slot -> pid BEFORE
+  const next={...G.onField};          // build the target lineup
   for(const q of G.queue){
-    const occ=G.onField[q.slotId]||null;
-    // incoming player on field
-    if(occ && occ!==q.playerId){
-      if(q.displacedTo && q.displacedTo!=="bench"){
-        // move displaced to another slot
-        const prev=G.onField[q.displacedTo]||null;
-        if(prev){ endStint(prev); } // someone there gets benched
-        G.onField[q.displacedTo]=occ; splitStint(occ,q.displacedTo);
-      }else{
-        endStint(occ);
-      }
-    }
-    if(isOnField(q.playerId)){ // moving an already-on player (rare via queue)
-      const fs=slotOf(q.playerId); if(fs) delete G.onField[fs];
-    }
-    G.onField[q.slotId]=q.playerId;
-    delete G.benchOffAt[q.playerId];
-    startStint(q.playerId,q.slotId);
+    const occ=next[q.slotId];
+    // displaced occupant keeps playing at another slot (if requested)
+    if(occ && occ!==q.playerId && q.displacedTo && q.displacedTo!=="bench") next[q.displacedTo]=occ;
+    // incoming can't be in two places — vacate any other slot they held
+    for(const s in next){ if(next[s]===q.playerId && s!==q.slotId) delete next[s]; }
+    next[q.slotId]=q.playerId;        // incoming wins this slot (last write wins on conflicts)
   }
+  // reconcile stints by diffing prev -> next (order-independent)
+  const prevSet=new Set(Object.values(prev)), nextSet=new Set(Object.values(next));
+  for(const pid of prevSet) if(!nextSet.has(pid)) endStint(pid);          // left the field
+  const prevSlot={}; for(const s in prev) prevSlot[prev[s]]=s;
+  for(const s in next){
+    const pid=next[s];
+    if(!prevSet.has(pid)){ delete G.benchOffAt[pid]; startStint(pid,s); }  // newly on
+    else if(prevSlot[pid]!==s) splitStint(pid,s);                          // changed position
+  }
+  G.onField=next;
   G.queue=[];
   save(); renderAll(); toast("Subs in ✓");
 }
@@ -766,7 +766,13 @@ function endGame(){
   G.done=true; c.atBreak=false; save(); renderAll(); toast("Game ended");
 }
 function reopenGame(){
-  pushUndo(); G.done=false; save(); renderAll(); toast("Game re-opened");
+  pushUndo(); G.done=false;
+  // re-open a stint for everyone still on the field (endGame had closed them)
+  for(const slot in G.onField){
+    const pid=G.onField[slot];
+    if(!G.stints.some(s=>s.playerId===pid && s.offAt==null)) startStint(pid,slot);
+  }
+  save(); renderAll(); toast("Game re-opened");
 }
 function addOvertime(periods, min){
   pushUndo();
@@ -885,7 +891,7 @@ function renderRail(){
   const rail=$("#rail");
   rail.innerHTML="";
   const onCount=Object.keys(G.onField).length;
-  $("#benchCount").textContent="On field "+onCount+"/9";
+  $("#benchCount").textContent="On field "+onCount+"/"+teamSize();
   const list=presentPlayers().slice().sort((a,b2)=>{
     // bench (subbable) first, queued pinned to top of bench, then least playtime; on-field sink to bottom
     const aOn=isOnField(a.id), bOn=isOnField(b2.id);
@@ -1009,7 +1015,9 @@ function toggleCaptain(pid){
 let teamScope="season";
 function teamRecord(){
   let w=0,l=0,d=0,gf=0,ga=0;
-  for(const g of T.games){ if(!g.started) continue; gf+=g.score.us; ga+=g.score.them;
+  // count finished games only (explicitly ended, or a past game that isn't the one being coached)
+  for(const g of T.games){ if(!(g.done || (g.started && g.id!==T.curId))) continue;
+    gf+=g.score.us; ga+=g.score.them;
     if(g.score.us>g.score.them)w++; else if(g.score.us<g.score.them)l++; else d++; }
   return {w,l,d,gf,ga};
 }
@@ -1130,7 +1138,7 @@ function openGameSheet(gid){
       const ff=el("div","chiprow");
       ["7v7","9v9","11v11"].forEach(fmt=>{
         const c=el("button","chip"+(g.format===fmt?" on":""),fmt);
-        c.onclick=()=>{ if(active){ setFormat(fmt); } else { g.format=fmt; g.formation=defaultFormationFor(fmt); g.onField={}; save(); } openGameSheet(gid); };
+        c.onclick=()=>{ if(active){ setFormat(fmt); } else { g.format=fmt; g.formation=defaultFormationFor(fmt); g.onField={}; g.queue=[]; save(); } openGameSheet(gid); };
         ff.appendChild(c);
       });
       sh.appendChild(ff);
@@ -1391,7 +1399,7 @@ function openPlayer(pid){
   });
 }
 function stat(k,v){ const s=el("div","stat"); s.appendChild(el("div","k",k)); s.appendChild(el("div","v",String(v))); return s; }
-function firstOpenSlot(){ for(const f of formSlots()) if(!G.onField[f[0]]) return f[0]; return null; }
+function firstOpenSlot(){ for(const f of formSlots()) if(!G.onField[f[0]] && !G.queue.some(q=>q.slotId===f[0])) return f[0]; return null; }
 
 // ---- Edit queued sub: where does the displaced player go? ----
 function editQueue(slotId){
@@ -1656,12 +1664,18 @@ function openMenu(){
     const gl=el("button","btn","⚽ Goals"); gl.onclick=()=>{closeSheet(); openGoalsLog();};
     rowE.appendChild(pt); rowE.appendChild(gl); sh.appendChild(rowE);
 
-    sh.appendChild(el("h3",null,"Export & data"));
+    sh.appendChild(el("h3",null,"Export this game"));
     const rowX=el("div","row");
     const cj=el("button","btn grow","Game CSV"); cj.onclick=()=>exportGameCSV();
     const sl=el("button","btn","Shift log"); sl.onclick=()=>exportShiftLog();
-    const jj=el("button","btn","JSON"); jj.onclick=()=>exportJSON();
-    rowX.appendChild(cj); rowX.appendChild(sl); rowX.appendChild(jj); sh.appendChild(rowX);
+    rowX.appendChild(cj); rowX.appendChild(sl); sh.appendChild(rowX);
+
+    sh.appendChild(el("h3",null,"Backup & restore (all data)"));
+    const rowB=el("div","row");
+    const bk=el("button","btn grow primary","💾 Back up everything"); bk.onclick=()=>exportJSON();
+    const rs=el("button","btn","Restore…"); rs.onclick=()=>pickImport();
+    rowB.appendChild(bk); rowB.appendChild(rs); sh.appendChild(rowB);
+    sh.appendChild(el("p","muted small","Saves ALL teams, games & shifts to a file. Restore loads it back — do this when switching phones or if your browser clears data. (Your data lives only in this browser; there's no cloud copy.)"));
     const sx=el("button","btn","Season summary (all games)"); sx.style.width="100%"; sx.style.marginTop="8px";
     sx.onclick=()=>{closeSheet(); openSeason();}; sh.appendChild(sx);
 
@@ -1724,7 +1738,7 @@ function seasonAgg(){
   for(const p of T.roster) agg[p.id]={min:0,goals:0,assists:0,games:0,captain:0,pm:0,pos:{}};
   for(const g of T.games){
     for(const cid of (g.captains||[])) if(agg[cid]) agg[cid].captain++;
-    const end = g.clock.accumMs; // committed game time (no live add for past games)
+    const end = g===G ? gameMs() : g.clock.accumMs; // live clock for the active game
     const seen=new Set();
     const intervals={}; // pid -> [[on,off]]
     for(const st of g.stints){
@@ -1741,7 +1755,7 @@ function seasonAgg(){
       if(gl.assistId&&agg[gl.assistId])agg[gl.assistId].assists++;
       const sign=gl.team==="us"?1:-1;
       for(const pid in intervals){
-        if(intervals[pid].some(([a,b])=>a<=gl.atMs && b>=gl.atMs) && agg[pid]) agg[pid].pm+=sign;
+        if(intervals[pid].some(([a,b])=>a<=gl.atMs && b>gl.atMs) && agg[pid]) agg[pid].pm+=sign;
       }
     }
     // co-play overlap
@@ -1815,7 +1829,22 @@ function exportSeasonCSV(){
   download("season_summary.csv", rows.map(csvRow).join("\n"),"text/csv");
   toast("Season CSV exported");
 }
-function exportJSON(){ download("sideline_data.json", JSON.stringify({...S,history:undefined},null,2),"application/json"); toast("JSON exported (full data incl. every shift)"); }
+function exportJSON(){ download("sideline_backup_"+new Date().toISOString().slice(0,10)+".json", JSON.stringify({...S,history:undefined},null,2),"application/json"); toast("Backup saved (full data incl. every shift)"); }
+function importJSON(file){
+  const reader=new FileReader();
+  reader.onload=()=>{
+    let data; try{ data=JSON.parse(reader.result); }catch(e){ toast("That isn't a valid backup file"); return; }
+    if(!data || (!data.teams && !data.roster && !data.games)){ toast("Unrecognized backup file"); return; }
+    try{ migrate(data); }catch(e){ toast("Couldn't read that backup"); return; }
+    const n=(data.teams||[]).length, players=(data.teams||[]).reduce((s,t)=>s+t.roster.length,0);
+    if(!confirm("Restore this backup? It REPLACES everything currently in the app.\n\n"+n+" team(s), "+players+" players.")) return;
+    S=data; S.history=[]; T=currentTeam(); G=curGame(); save(); setView("home"); renderAll();
+    toast("Backup restored ✓");
+  };
+  reader.readAsText(file);
+}
+$("#importFile").onchange=function(){ if(this.files&&this.files[0]) importJSON(this.files[0]); this.value=""; };
+function pickImport(){ $("#importFile").click(); }
 
 // Detailed shift-by-shift log: every sub in/out with timestamps, position, duration.
 function exportShiftLog(g=G){
@@ -2008,7 +2037,7 @@ function openTeamSheet(id){
     row.appendChild(arch);
     if(S.teams.length>1){
       const del=el("button","btn","Delete");
-      del.onclick=()=>{ if(confirm("Delete \""+t.name+"\" and ALL its data permanently?")){ S.teams=S.teams.filter(x=>x.id!==t.id); if(S.curTeamId===t.id) S.curTeamId=S.teams[0].id; T=currentTeam(); G=curGame(); save(); closeSheet(); renderTeams(); renderAll(); } };
+      del.onclick=()=>{ if(confirm("Delete \""+t.name+"\" and ALL its data permanently?")){ S.teams=S.teams.filter(x=>x.id!==t.id); if(S.curTeamId===t.id) S.curTeamId=(S.teams.find(x=>!x.archived)||S.teams[0]).id; T=currentTeam(); G=curGame(); save(); closeSheet(); renderTeams(); renderAll(); } };
       row.appendChild(del);
     }
     sh.appendChild(row);
