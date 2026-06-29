@@ -201,10 +201,10 @@
 
   /* ---------- Pager (transform-based: no accidental scroll while dragging) ---------- */
   #pager{flex:1; overflow:hidden; position:relative;}
-  #pages{display:flex; flex-direction:column; height:300%;
+  #pages{display:flex; flex-direction:column; height:200%;
     transform:translateY(0); transition:transform .26s ease;}
-  .page{height:33.3333%; display:flex; flex-direction:column; min-height:0;}
-  #pageData,#pageTeam{overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;}
+  .page{height:50%; display:flex; flex-direction:column; min-height:0;}
+  #pageData{overflow-y:auto; overscroll-behavior:contain; -webkit-overflow-scrolling:touch;}
   .swipehint{position:absolute; bottom:2px; left:50%; transform:translateX(-50%);
     font-size:10px; color:var(--faint); pointer-events:none;}
 
@@ -252,10 +252,23 @@
   .absent .av{filter:grayscale(1) brightness(.6);}
   .absent .nm{color:var(--faint); text-decoration:line-through;}
 
-  /* ---------- Team page ---------- */
-  #pageTeam{padding:12px 12px calc(20px + env(safe-area-inset-bottom));}
-  #pageTeam h3{margin:14px 0 7px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;}
-  #pageTeam h3:first-of-type{margin-top:6px;}
+  /* ---------- Views (game / home / teams) ---------- */
+  .view{display:none; flex-direction:column; flex:1; min-height:0;}
+  .view.active{display:flex;}
+  .homehdr{display:flex; align-items:center; gap:8px; background:var(--panel);
+    border-bottom:1px solid var(--line); padding:max(8px,env(safe-area-inset-top)) 10px 8px;}
+  .homehdr .htitle{flex:1; font-weight:800; font-size:16px; text-align:center;
+    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+  #homeScroll,#teamsScroll{flex:1; overflow-y:auto; padding:12px 12px 16px;}
+  #homenav{padding:8px 10px calc(8px + env(safe-area-inset-bottom)); background:var(--panel);
+    border-top:1px solid var(--line);}
+  #homenav .btn{width:100%;}
+  .recordline{display:flex; gap:8px; margin:8px 0;}
+  .recordline .stat{flex:1; text-align:center;}
+
+  /* ---------- Home content (was Team page) ---------- */
+  #homeScroll h3{margin:14px 0 7px; font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.5px;}
+  #homeScroll h3:first-of-type{margin-top:6px;}
   td.pos{color:var(--muted); font-size:11px;}
   td.pm.pos-v{color:var(--us);} td.pm.neg-v{color:var(--them);}
   .plusminus{font-weight:800;}
@@ -267,6 +280,8 @@
 </head>
 <body>
 
+<!-- ===================== GAME VIEW ===================== -->
+<div id="gameView" class="view">
 <header>
   <div class="scorerow">
     <div class="team us">
@@ -330,18 +345,37 @@
   <section class="page" id="pageData">
     <!-- injected by renderData() -->
   </section>
-
-  <section class="page" id="pageTeam">
-    <!-- injected by renderTeam() -->
-  </section>
  </div>
 </main>
 
 <nav id="tabbar">
   <button data-page="0" class="on" id="tabField">⚽ Field</button>
   <button data-page="1" id="tabData">📊 Game</button>
-  <button data-page="2" id="tabTeam">👥 Team</button>
+  <button data-view="home" id="tabHome">🏠 Home</button>
 </nav>
+</div><!-- /gameView -->
+
+<!-- ===================== HOME VIEW ===================== -->
+<div id="homeView" class="view">
+  <header class="homehdr">
+    <button class="btn sm ghost" id="teamsBtn">≡ Teams</button>
+    <div class="htitle" id="homeTeamName">My Team</div>
+    <button class="btn sm ghost" id="homeMenuBtn">☰</button>
+  </header>
+  <div id="homeScroll"><!-- injected by renderHome() --></div>
+  <nav id="homenav">
+    <button class="btn go" id="coachBtn">▶ Coach the current game</button>
+  </nav>
+</div><!-- /homeView -->
+
+<!-- ===================== TEAMS VIEW ===================== -->
+<div id="teamsView" class="view">
+  <header class="homehdr">
+    <div class="htitle">Teams</div>
+    <button class="btn sm ghost" id="teamsClose">Done</button>
+  </header>
+  <div id="teamsScroll"><!-- injected by renderTeams() --></div>
+</div><!-- /teamsView -->
 
 <div id="dragclone"></div>
 <div class="toast" id="toast"></div>
@@ -398,7 +432,7 @@ const PALETTE=["#3fb950","#2f81f7","#d29922","#db61a2","#f0883e","#a371f7",
 
 // Active formation's slot list — supports a saved custom layout
 function formSlots(){
-  if(G && G.formation==="Custom" && S && S.customFormation) return S.customFormation;
+  if(G && G.formation==="Custom" && T && T.customFormation) return T.customFormation;
   const fmt=(G && FORMATS[G.format]) || FORMATS["9v9"];
   return fmt.formations[G && G.formation] || fmt.formations[defaultFormationFor(G&&G.format||"9v9")];
 }
@@ -427,19 +461,35 @@ function freshGame(){
     adjust:{},                // playerId -> manual playtime correction in ms (+/-)
   };
 }
+function newTeam(name){
+  return { id:uid(), name:name||"My Team", roster:demoRoster(), games:[], curId:null,
+           defaultLineup:null, customFormation:null, archived:false };
+}
 function load(){
   try{
     const raw=localStorage.getItem(LS_KEY);
-    if(raw){const s=JSON.parse(raw); if(s&&s.roster) {migrate(s); return s;}}
+    if(raw){ const s=JSON.parse(raw); migrate(s); return s; }
   }catch(e){console.warn(e);}
-  return { teamName:"Our Team", roster:demoRoster(), games:[], curId:null, history:[], defaultLineup:null };
+  return { teams:[newTeam("My Team")], curTeamId:null, view:"home", history:[] };
 }
 function migrate(s){
-  s.history=s.history||[]; if(!s.games)s.games=[];
-  s.defaultLineup=s.defaultLineup||null;   // {formation, slots:{slotId:pid}}
-  for(const g of s.games){ g.absent=g.absent||[]; g.captains=g.captains||[]; g.notes=g.notes||""; g.adjust=g.adjust||{}; g.format=g.format||"9v9";
-    g.clock.atBreak=g.clock.atBreak||false; g.regPeriods=g.regPeriods||2; g.periodMin=g.periodMin||g.periodLenMin||30;
-    g.otPeriods=g.otPeriods||0; g.otMin=g.otMin||0; g.done=g.done||false; g.shootout=g.shootout||{us:0,them:0,kicks:[]}; }
+  // wrap a legacy single-team save into the multi-team structure
+  if(!s.teams){
+    const t={ id:uid(), name:s.teamName||"My Team", roster:s.roster||demoRoster(),
+      games:s.games||[], curId:s.curId||null, defaultLineup:s.defaultLineup||null,
+      customFormation:s.customFormation||null, archived:false };
+    s.teams=[t]; s.curTeamId=t.id;
+    delete s.roster; delete s.games; delete s.curId; delete s.teamName; delete s.defaultLineup; delete s.customFormation;
+  }
+  s.history=s.history||[]; s.view=s.view||"home";
+  for(const t of s.teams){
+    t.archived=t.archived||false; t.roster=t.roster||[]; t.games=t.games||[];
+    for(const g of t.games){
+      g.absent=g.absent||[]; g.captains=g.captains||[]; g.notes=g.notes||""; g.adjust=g.adjust||{}; g.format=g.format||"9v9";
+      g.clock.atBreak=g.clock.atBreak||false; g.regPeriods=g.regPeriods||2; g.periodMin=g.periodMin||g.periodLenMin||30;
+      g.otPeriods=g.otPeriods||0; g.otMin=g.otMin||0; g.done=g.done||false; g.shootout=g.shootout||{us:0,them:0,kicks:[]};
+    }
+  }
 }
 function save(){ localStorage.setItem(LS_KEY, JSON.stringify({...S, history:undefined})); }
 function uid(){ return Math.random().toString(36).slice(2,9); }
@@ -451,10 +501,19 @@ function demoRoster(){
   return names.map((n,i)=>({id:uid(), name:n, number:i+2, color:PALETTE[i%PALETTE.length]}));
 }
 
+function currentTeam(){
+  if(!S.curTeamId || !S.teams.find(t=>t.id===S.curTeamId)){
+    const t=S.teams.find(t=>!t.archived)||S.teams[0]||newTeam("My Team");
+    if(!S.teams.length) S.teams.push(t);
+    S.curTeamId=t.id;
+  }
+  return S.teams.find(t=>t.id===S.curTeamId);
+}
+let T = currentTeam();
 function curGame(){
-  if(!S.curId){ const g=freshGame(); S.games.push(g); S.curId=g.id; }
-  let g=S.games.find(x=>x.id===S.curId);
-  if(!g){ g=freshGame(); S.games.push(g); S.curId=g.id; }
+  if(!T.curId){ const g=freshGame(); T.games.push(g); T.curId=g.id; }
+  let g=T.games.find(x=>x.id===T.curId);
+  if(!g){ g=freshGame(); T.games.push(g); T.curId=g.id; }
   return g;
 }
 let G = curGame();
@@ -553,9 +612,9 @@ function pushUndo(){
 function undo(){
   if(!S.history||!S.history.length){ toast("Nothing to undo"); return; }
   const snap=JSON.parse(S.history.pop());
-  const i=S.games.findIndex(x=>x.id===snap.id);
-  if(i>=0) S.games[i]=snap; else S.games.push(snap);
-  S.curId=snap.id; G=snap; save(); renderAll(); toast("Undone");
+  const i=T.games.findIndex(x=>x.id===snap.id);
+  if(i>=0) T.games[i]=snap; else T.games.push(snap);
+  T.curId=snap.id; G=snap; save(); renderAll(); toast("Undone");
 }
 
 function startStint(pid, slot){
@@ -736,22 +795,22 @@ function recordUsGoal(scorerId, assistId){
 }
 
 // ---------------- Lookups ----------------
-function player(id){ return S.roster.find(p=>p.id===id); }
+function player(id){ return T.roster.find(p=>p.id===id); }
 function pName(id){ const p=player(id); return p?p.name:"?"; }
 function isAbsent(pid){ return G.absent.includes(pid); }
 function isCaptain(pid){ return G.captains.includes(pid); }
-function presentPlayers(){ return S.roster.filter(p=>!isAbsent(p.id)); }
+function presentPlayers(){ return T.roster.filter(p=>!isAbsent(p.id)); }
 function benchPlayers(){
-  return S.roster.filter(p=>!isOnField(p.id) && !isAbsent(p.id));
+  return T.roster.filter(p=>!isOnField(p.id) && !isAbsent(p.id));
 }
 
 //==================================================================
 //  Rendering
 //==================================================================
-function renderAll(){ renderTop(); renderField(); renderQueue(); renderRail(); renderData(); renderTeam(); }
+function renderAll(){ renderTop(); renderField(); renderQueue(); renderRail(); renderData(); if(view==="home") renderHome(); if(view==="teams") renderTeams(); }
 
 function renderTop(){
-  $("#usName").textContent=S.teamName||"Our Team";
+  $("#usName").textContent=T.name||"Our Team";
   $("#themName").textContent=G.opponent||"Opponent";
   $("#usScore").textContent=G.score.us;
   $("#themScore").textContent=G.score.them;
@@ -851,7 +910,7 @@ function renderRail(){
     rail.appendChild(t);
   }
   // absent players shown dimmed at the very bottom
-  for(const p of S.roster.filter(x=>isAbsent(x.id))){
+  for(const p of T.roster.filter(x=>isAbsent(x.id))){
     const t=el("div","railtile absent"); t.dataset.player=p.id;
     const stripe=el("div","stripe"); stripe.style.background=p.color; t.appendChild(stripe);
     const info=el("div","info"); info.appendChild(el("div","nm",p.name));
@@ -945,21 +1004,36 @@ function toggleCaptain(pid){
   save(); renderAll();
 }
 
-// ---- Team page: per-player table (this game OR season), with +/- ----
-let teamScope="game";
-function renderTeam(){
-  const pg=$("#pageTeam"); pg.innerHTML="";
+// ---- Home page: team record, schedule, per-player stats ----
+let teamScope="season";
+function teamRecord(){
+  let w=0,l=0,d=0,gf=0,ga=0;
+  for(const g of T.games){ if(!g.started) continue; gf+=g.score.us; ga+=g.score.them;
+    if(g.score.us>g.score.them)w++; else if(g.score.us<g.score.them)l++; else d++; }
+  return {w,l,d,gf,ga};
+}
+function renderHome(){
+  $("#homeTeamName").textContent=T.name;
+  const pg=$("#homeScroll"); pg.innerHTML="";
+
+  // ---- Record ----
+  const rec=teamRecord();
+  const rr=el("div","recordline");
+  rr.appendChild(stat("Record", rec.w+"-"+rec.l+"-"+rec.d));
+  rr.appendChild(stat("Goals", rec.gf+" / "+rec.ga));
+  rr.appendChild(stat("Games", T.games.filter(g=>g.started).length));
+  pg.appendChild(rr);
 
   // ---- Schedule ----
   pg.appendChild(el("h3",null,"Schedule"));
   const ng=el("button","btn primary","＋ New game"); ng.style.width="100%";
   ng.onclick=newScheduledGame; pg.appendChild(ng);
   const sched=el("div","plist"); sched.style.margin="8px 0 4px";
-  S.games.slice().sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(g=>{
+  T.games.slice().sort((a,b)=> new Date(a.date)-new Date(b.date)).forEach(g=>{
     const it=el("div","pitem"); it.style.cursor="pointer";
     const meta=el("div","meta");
     meta.appendChild(el("div","nm","vs "+g.opponent+(g.started?("   "+g.score.us+"–"+g.score.them):"")));
-    const tag = g.id===S.curId ? "● current" : (g.started?"final":"upcoming");
+    const tag = g.id===T.curId ? "● current" : (g.started?"final":"upcoming");
     meta.appendChild(el("div","sub", fmtDate(g.date)+" · "+g.format+" · "+tag));
     it.appendChild(meta);
     it.appendChild(el("div","muted",">"));
@@ -972,16 +1046,16 @@ function renderTeam(){
   pg.appendChild(el("h3",null,"Player stats"));
   const seg=el("div","seg");
   [["game","This game"],["season","Season"]].forEach(([k,lbl])=>{
-    const b=el("button",teamScope===k?"on":"",lbl); b.onclick=()=>{teamScope=k; renderTeam();}; seg.appendChild(b);
+    const b=el("button",teamScope===k?"on":"",lbl); b.onclick=()=>{teamScope=k; renderHome();}; seg.appendChild(b);
   });
   pg.appendChild(seg);
   pg.appendChild(el("h3",null, teamScope==="game"
-    ? ((S.teamName||"Us")+" vs "+G.opponent+"  "+G.score.us+"–"+G.score.them)
-    : (S.games.length+" game"+(S.games.length===1?"":"s")+" tracked")));
+    ? ((T.name||"Us")+" vs "+G.opponent+"  "+G.score.us+"–"+G.score.them)
+    : (T.games.length+" game"+(T.games.length===1?"":"s")+" tracked")));
 
   let rows;
   if(teamScope==="game"){
-    rows=S.roster.map(p=>{
+    rows=T.roster.map(p=>{
       const pos={}; G.stints.filter(s=>s.playerId===p.id).forEach(s=>{pos[s.slot]=(pos[s.slot]||0)+((s.offAt==null?gameMs():s.offAt)-s.onAt);});
       return {p, min:playtime(p.id),
         goals:G.goals.filter(g=>g.scorerId===p.id).length,
@@ -990,7 +1064,7 @@ function renderTeam(){
     });
   }else{
     const {agg}=seasonAgg();
-    rows=S.roster.map(p=>{const a=agg[p.id]; return {p,min:a.min,goals:a.goals,assists:a.assists,pm:a.pm,pos:a.pos};});
+    rows=T.roster.map(p=>{const a=agg[p.id]; return {p,min:a.min,goals:a.goals,assists:a.assists,pm:a.pm,pos:a.pos};});
   }
   rows.sort((a,b)=>b.min-a.min);
   const tbl=el("table");
@@ -1017,11 +1091,11 @@ function renderTeam(){
 // ---- Schedule: create + manage a game (attendance, opponent, notes, format) ----
 function newScheduledGame(){
   const g=freshGame(); g.opponent="Opponent"; g.format=G?G.format:"9v9"; g.formation=defaultFormationFor(g.format);
-  S.games.push(g); save(); openGameSheet(g.id);
+  T.games.push(g); save(); openGameSheet(g.id);
 }
 function openGameSheet(gid){
-  const g=S.games.find(x=>x.id===gid); if(!g) return;
-  const active=(g.id===S.curId), played=g.started;
+  const g=T.games.find(x=>x.id===gid); if(!g) return;
+  const active=(g.id===T.curId), played=g.started;
   sheet("vs "+g.opponent, sh=>{
     const r1=el("div","row");
     const opF=el("label","fld"); opF.appendChild(el("span",null,"Opponent"));
@@ -1029,7 +1103,7 @@ function openGameSheet(gid){
     opF.appendChild(opI); r1.appendChild(opF);
     const dF=el("label","fld"); dF.style.flex="0 0 140px"; dF.appendChild(el("span",null,"Date"));
     const dI=el("input"); dI.type="date"; dI.value=(g.date||"").slice(0,10);
-    dI.onchange=()=>{ if(dI.value){ g.date=new Date(dI.value+"T09:00:00").toISOString(); save(); renderTeam&&0; } };
+    dI.onchange=()=>{ if(dI.value){ g.date=new Date(dI.value+"T09:00:00").toISOString(); save(); if(view==="home")renderHome(); } };
     dF.appendChild(dI); r1.appendChild(dF);
     sh.appendChild(r1);
     sh.appendChild(el("p","muted small", active?"● This is the active game you're coaching.":(played?("Final score "+g.score.us+"–"+g.score.them):"Upcoming — set who's playing.")));
@@ -1037,7 +1111,7 @@ function openGameSheet(gid){
     if(played){
       sh.appendChild(el("h3",null,"Result & player lines"));
       const tbl=el("table"); tbl.innerHTML="<tr><th>Player</th><th class='num'>Min</th><th class='num'>G</th><th class='num'>A</th><th class='num'>+/-</th></tr>";
-      S.roster.map(p=>({p, min:gamePlaytime(p.id,g),
+      T.roster.map(p=>({p, min:gamePlaytime(p.id,g),
         go:g.goals.filter(x=>x.scorerId===p.id).length, as:g.goals.filter(x=>x.assistId===p.id).length, pm:plusMinus(p.id,g)}))
         .filter(r=>r.min>0||r.go||r.as).sort((a,b)=>b.min-a.min).forEach(r=>{
           const col=r.pm>0?"var(--us)":(r.pm<0?"var(--them)":"var(--muted)");
@@ -1060,7 +1134,7 @@ function openGameSheet(gid){
       sh.appendChild(el("h3",null,"Who's playing (tap to toggle)"));
       const list=el("div","plist");
       g.absent=g.absent||[];
-      S.roster.slice().sort((a,b)=>a.number-b.number).forEach(p=>{
+      T.roster.slice().sort((a,b)=>a.number-b.number).forEach(p=>{
         const out=g.absent.includes(p.id);
         const it=el("div","pitem"+(out?" absent":"")); it.style.cursor="pointer";
         const sw=el("div","sw",String(p.number)); sw.style.background=SAFE_GREEN; sw.style.color="#06140a"; it.appendChild(sw);
@@ -1072,7 +1146,7 @@ function openGameSheet(gid){
       sh.appendChild(list);
       const addp=el("button","btn","＋ Add a player to the roster"); addp.style.width="100%";
       addp.onclick=()=>editPlayer(null); sh.appendChild(addp);
-      sh.appendChild(el("p","muted small", (S.roster.length-g.absent.length)+" available"));
+      sh.appendChild(el("p","muted small", (T.roster.length-g.absent.length)+" available"));
     }
 
     sh.appendChild(el("h3",null,"Notes"));
@@ -1082,11 +1156,11 @@ function openGameSheet(gid){
     const row=el("div","row"); row.style.marginTop="12px";
     if(!active){
       const mk=el("button","btn grow primary", played?"Re-open as active game":"Make this the active game");
-      mk.onclick=()=>{ S.curId=g.id; G=curGame(); S.history=[]; if(!g.started) applyDefaultLineup(true); save(); renderAll(); closeSheet(); setPage(0); toast("Now coaching vs "+g.opponent); };
+      mk.onclick=()=>{ T.curId=g.id; G=curGame(); S.history=[]; if(!g.started) applyDefaultLineup(true); save(); closeSheet(); setView("game"); setPage(0); renderAll(); toast("Now coaching vs "+g.opponent); };
       row.appendChild(mk);
     }
     const del=el("button","btn","Delete");
-    del.onclick=()=>{ if(confirm("Delete this game and its data?")){ S.games=S.games.filter(x=>x.id!==g.id); if(S.curId===g.id){ S.curId=S.games.length?S.games[S.games.length-1].id:null; G=curGame(); } save(); renderAll(); closeSheet(); } };
+    del.onclick=()=>{ if(confirm("Delete this game and its data?")){ T.games=T.games.filter(x=>x.id!==g.id); if(T.curId===g.id){ T.curId=T.games.length?T.games[T.games.length-1].id:null; G=curGame(); } save(); renderAll(); closeSheet(); } };
     row.appendChild(del);
     sh.appendChild(row);
   });
@@ -1384,8 +1458,8 @@ function openGoalSheet(preScorer){
   build();
 }
 function onFieldThenBench(){
-  const on=S.roster.filter(p=>isOnField(p.id));
-  const off=S.roster.filter(p=>!isOnField(p.id));
+  const on=T.roster.filter(p=>isOnField(p.id));
+  const off=T.roster.filter(p=>!isOnField(p.id));
   return on.concat(off);
 }
 
@@ -1393,12 +1467,12 @@ function onFieldThenBench(){
 function openRoster(){
   sheet("Roster", sh=>{
     const tn=el("label","fld"); tn.appendChild(el("span",null,"Team name"));
-    const tni=el("input"); tni.value=S.teamName||""; tni.onchange=()=>{S.teamName=tni.value.trim()||"Our Team"; save(); renderTop();};
+    const tni=el("input"); tni.value=T.name||""; tni.onchange=()=>{T.name=tni.value.trim()||"Our Team"; save(); renderTop();};
     tn.appendChild(tni); sh.appendChild(tn);
 
-    sh.appendChild(el("h3",null,"Players ("+S.roster.length+")"));
+    sh.appendChild(el("h3",null,"Players ("+T.roster.length+")"));
     const list=el("div","plist");
-    S.roster.slice().sort((a,b)=>a.number-b.number).forEach(p=>{
+    T.roster.slice().sort((a,b)=>a.number-b.number).forEach(p=>{
       const it=el("div","pitem");
       const sw=el("div","sw",String(p.number)); sw.style.background=p.color; sw.style.color=textOn(p.color);
       it.appendChild(sw);
@@ -1417,7 +1491,7 @@ function openRoster(){
   });
 }
 function editPlayer(pid){
-  const p = pid?player(pid):{id:uid(),name:"",number:nextNum(),color:PALETTE[S.roster.length%PALETTE.length]};
+  const p = pid?player(pid):{id:uid(),name:"",number:nextNum(),color:PALETTE[T.roster.length%PALETTE.length]};
   sheet(pid?"Edit player":"New player", sh=>{
     const r1=el("div","row");
     const nameF=el("label","fld"); nameF.appendChild(el("span",null,"Name"));
@@ -1430,7 +1504,7 @@ function editPlayer(pid){
     setTimeout(()=>{ if(!pid) nameI.focus(); }, 60);
     function doSave(){
       p.name=nameI.value.trim()||("#"+numI.value); p.number=parseInt(numI.value)||0;
-      if(!pid) S.roster.push(p);
+      if(!pid) T.roster.push(p);
       save(); renderAll(); openRoster();
     }
     const row=el("div","row"); row.style.marginTop="14px";
@@ -1439,13 +1513,13 @@ function editPlayer(pid){
     row.appendChild(sv);
     if(pid){
       const del=el("button","btn","Remove");
-      del.onclick=()=>{ if(confirm("Remove "+p.name+"?")){ benchPlayer(pid); S.roster=S.roster.filter(x=>x.id!==pid); save(); openRoster(); } };
+      del.onclick=()=>{ if(confirm("Remove "+p.name+"?")){ benchPlayer(pid); T.roster=T.roster.filter(x=>x.id!==pid); save(); openRoster(); } };
       row.appendChild(del);
     }
     sh.appendChild(row);
   });
 }
-function nextNum(){ const used=new Set(S.roster.map(p=>p.number)); let n=2; while(used.has(n))n++; return n; }
+function nextNum(){ const used=new Set(T.roster.map(p=>p.number)); let n=2; while(used.has(n))n++; return n; }
 
 // ---- Period / clock control sheet ----
 function openPeriodSheet(){
@@ -1490,7 +1564,7 @@ function openPeriodSheet(){
     // ---- Shootout ----
     sh.appendChild(el("h3",null,"Shootout / PKs"));
     const so=G.shootout||{us:0,them:0,kicks:[]};
-    sh.appendChild(el("p","muted small",(S.teamName||"Us")+" "+so.us+" — "+so.them+" "+G.opponent+(so.kicks.length?("  ("+so.kicks.length+" kicks)"):"")));
+    sh.appendChild(el("p","muted small",(T.name||"Us")+" "+so.us+" — "+so.them+" "+G.opponent+(so.kicks.length?("  ("+so.kicks.length+" kicks)"):"")));
     const sg=el("div","adjrow");
     [["us",true,"Us ✓"],["us",false,"Us ✗"],["them",true,"Them ✓"],["them",false,"Them ✗"]].forEach(([tm,md,lbl])=>{
       const b=el("button","btn "+(md?"plus":"minus"),lbl); b.onclick=()=>{ recordShootout(tm,md); openPeriodSheet(); }; sg.appendChild(b);
@@ -1543,7 +1617,7 @@ function openMenu(){
       c.onclick=()=>{ pushUndo(); G.formation=k; save(); renderAll(); openMenu(); };
       fr.appendChild(c);
     });
-    if(S.customFormation){
+    if(T.customFormation){
       const c=el("button","chip"+(G.formation==="Custom"?" on":""),"Custom");
       c.onclick=()=>{ pushUndo(); G.formation="Custom"; save(); renderAll(); openMenu(); };
       fr.appendChild(c);
@@ -1563,7 +1637,7 @@ function openMenu(){
     const sv=el("button","btn grow","Save lineup as default"); sv.onclick=()=>{saveDefaultLineup();};
     const ap=el("button","btn grow","Apply default"); ap.onclick=()=>{applyDefaultLineup(false); closeSheet();};
     lr2.appendChild(sv); lr2.appendChild(ap); sh.appendChild(lr2);
-    if(S.defaultLineup) sh.appendChild(el("p","muted small","Default lineup saved ("+S.defaultLineup.formation+") — auto-applied to new games."));
+    if(T.defaultLineup) sh.appendChild(el("p","muted small","Default lineup saved ("+T.defaultLineup.formation+") — auto-applied to new games."));
 
     sh.appendChild(el("h3",null,"This game"));
     const gs=el("div","statgrid");
@@ -1586,19 +1660,19 @@ function openMenu(){
     const sx=el("button","btn","Season summary (all games)"); sx.style.width="100%"; sx.style.marginTop="8px";
     sx.onclick=()=>{closeSheet(); openSeason();}; sh.appendChild(sx);
 
-    sh.appendChild(el("h3",null,"Games ("+S.games.length+")"));
+    sh.appendChild(el("h3",null,"Games ("+T.games.length+")"));
     const ng=el("button","btn primary","+ New game"); ng.style.width="100%";
-    ng.onclick=()=>{ if(confirm("Start a new game? Current game is saved.")){ const g=freshGame(); g.opponent="Opponent"; S.games.push(g); S.curId=g.id; G=g; S.history=[]; applyDefaultLineup(true); save(); renderAll(); closeSheet(); toast(S.defaultLineup?"New game — default lineup loaded":"New game"); } };
+    ng.onclick=()=>{ if(confirm("Start a new game? Current game is saved.")){ const g=freshGame(); g.opponent="Opponent"; T.games.push(g); T.curId=g.id; G=g; S.history=[]; applyDefaultLineup(true); save(); renderAll(); closeSheet(); toast(T.defaultLineup?"New game — default lineup loaded":"New game"); } };
     sh.appendChild(ng);
     const gl2=el("div","plist"); gl2.style.marginTop="8px";
-    S.games.slice().reverse().forEach(g=>{
+    T.games.slice().reverse().forEach(g=>{
       const it=el("div","pitem");
       const meta=el("div","meta");
-      meta.appendChild(el("div","nm",(S.teamName||"Us")+" vs "+g.opponent+"  "+g.score.us+"–"+g.score.them));
-      meta.appendChild(el("div","sub",new Date(g.date).toLocaleDateString()+(g.id===S.curId?" • current":"")));
+      meta.appendChild(el("div","nm",(T.name||"Us")+" vs "+g.opponent+"  "+g.score.us+"–"+g.score.them));
+      meta.appendChild(el("div","sub",new Date(g.date).toLocaleDateString()+(g.id===T.curId?" • current":"")));
       it.appendChild(meta);
-      if(g.id!==S.curId){
-        const op=el("button","btn sm ghost","Open"); op.onclick=()=>{S.curId=g.id; G=curGame(); S.history=[]; save(); renderAll(); closeSheet();};
+      if(g.id!==T.curId){
+        const op=el("button","btn sm ghost","Open"); op.onclick=()=>{T.curId=g.id; G=curGame(); S.history=[]; save(); renderAll(); closeSheet();};
         it.appendChild(op);
       }
       gl2.appendChild(it);
@@ -1612,7 +1686,7 @@ function openPlaytime(){
     sh.appendChild(el("p","muted","Live minutes this game — lowest first."));
     const tbl=el("table");
     tbl.innerHTML="<tr><th>Player</th><th>Where</th><th class='num'>Time</th></tr>";
-    S.roster.map(p=>({p,t:playtime(p.id)})).sort((a,b)=>a.t-b.t).forEach(({p,t})=>{
+    T.roster.map(p=>({p,t:playtime(p.id)})).sort((a,b)=>a.t-b.t).forEach(({p,t})=>{
       const tr=el("tr");
       const where=isOnField(p.id)?slotOf(p.id):(isQueuedIn(p.id)?"↑ queued":"bench");
       tr.innerHTML=`<td>${esc(p.name)}</td><td class='muted'>${where}</td><td class='num'>${fmt(t)}</td>`;
@@ -1627,7 +1701,7 @@ function openGoalsLog(){
     const tbl=el("table"); tbl.innerHTML="<tr><th>Time</th><th>Team</th><th>Scorer</th><th>Assist</th><th></th></tr>";
     G.goals.slice().sort((a,b)=>a.atMs-b.atMs).forEach(g=>{
       const tr=el("tr");
-      tr.innerHTML=`<td>${fmt(g.atMs)}</td><td>${g.team==="us"?(S.teamName||"Us"):G.opponent}</td>`+
+      tr.innerHTML=`<td>${fmt(g.atMs)}</td><td>${g.team==="us"?(T.name||"Us"):G.opponent}</td>`+
         `<td>${g.scorerId?esc(pName(g.scorerId)):"—"}</td><td class='muted'>${g.assistId?esc(pName(g.assistId)):"—"}</td>`;
       const td=el("td"); const x=el("button","btn sm ghost","✕");
       x.onclick=()=>{ pushUndo(); if(g.team==="us")G.score.us=Math.max(0,G.score.us-1); else G.score.them=Math.max(0,G.score.them-1); G.goals=G.goals.filter(y=>y.id!==g.id); save(); renderAll(); openGoalsLog(); };
@@ -1642,8 +1716,8 @@ function openGoalsLog(){
 function seasonAgg(){
   const agg={}; // pid -> {min, goals, assists, games}
   const pairs={}; // "a|b" -> shared ms
-  for(const p of S.roster) agg[p.id]={min:0,goals:0,assists:0,games:0,captain:0,pm:0,pos:{}};
-  for(const g of S.games){
+  for(const p of T.roster) agg[p.id]={min:0,goals:0,assists:0,games:0,captain:0,pm:0,pos:{}};
+  for(const g of T.games){
     for(const cid of (g.captains||[])) if(agg[cid]) agg[cid].captain++;
     const end = g.clock.accumMs; // committed game time (no live add for past games)
     const seen=new Set();
@@ -1678,12 +1752,12 @@ function overlap(A,B){ let t=0; for(const[a1,a2]of A)for(const[b1,b2]of B){ t+=M
 
 function openSeason(){
   sheet("Season summary", sh=>{
-    sh.appendChild(el("p","muted",S.games.length+" game(s) tracked."));
+    sh.appendChild(el("p","muted",T.games.length+" game(s) tracked."));
     const {agg,pairs}=seasonAgg();
     sh.appendChild(el("h3",null,"Minutes & scoring"));
     const tbl=el("table");
     tbl.innerHTML="<tr><th>Player</th><th class='num'>Min</th><th class='num'>G</th><th class='num'>A</th><th class='num'>GP</th><th class='num'>Cpt</th></tr>";
-    S.roster.map(p=>({p,a:agg[p.id]})).sort((x,y)=>y.a.min-x.a.min).forEach(({p,a})=>{
+    T.roster.map(p=>({p,a:agg[p.id]})).sort((x,y)=>y.a.min-x.a.min).forEach(({p,a})=>{
       const tr=el("tr");
       tr.innerHTML=`<td>${esc(p.name)}</td><td class='num'>${Math.round(a.min/60000)}</td><td class='num'>${a.goals}</td><td class='num'>${a.assists}</td><td class='num'>${a.games}</td><td class='num'>${a.captain}</td>`;
       tbl.appendChild(tr);
@@ -1715,13 +1789,13 @@ function download(name, text, type="text/plain"){
 function csvRow(arr){ return arr.map(v=>{ v=String(v??""); return /[",\n]/.test(v)?'"'+v.replace(/"/g,'""')+'"':v; }).join(","); }
 function exportGameCSV(){
   const rows=[["Player","Number","Minutes","Goals","Assists","Positions"]];
-  for(const p of S.roster){
+  for(const p of T.roster){
     const pos={}; G.stints.filter(s=>s.playerId===p.id).forEach(s=>{pos[s.slot]=(pos[s.slot]||0)+((s.offAt==null?gameMs():s.offAt)-s.onAt);});
     const posStr=Object.entries(pos).map(([k,v])=>k+":"+Math.round(v/60000)).join(" ");
     rows.push([p.name,p.number,(playtime(p.id)/60000).toFixed(1),
       G.goals.filter(g=>g.scorerId===p.id).length, G.goals.filter(g=>g.assistId===p.id).length, posStr]);
   }
-  let meta="# "+(S.teamName||"Us")+" vs "+G.opponent+"  "+G.score.us+"-"+G.score.them+"  "+new Date(G.date).toLocaleDateString()+"\n";
+  let meta="# "+(T.name||"Us")+" vs "+G.opponent+"  "+G.score.us+"-"+G.score.them+"  "+new Date(G.date).toLocaleDateString()+"\n";
   if(G.captains.length) meta+="# Captains: "+G.captains.map(pName).join(", ")+"\n";
   if(G.notes) meta+="# Notes: "+G.notes.replace(/\n/g," ")+"\n";
   download("game_"+G.opponent.replace(/\W+/g,"")+"_"+G.date.slice(0,10)+".csv", meta+rows.map(csvRow).join("\n"),"text/csv");
@@ -1730,7 +1804,7 @@ function exportGameCSV(){
 function exportSeasonCSV(){
   const {agg,pairs}=seasonAgg();
   const rows=[["Player","Number","TotalMin","Goals","Assists","GamesPlayed","CaptainCount"]];
-  S.roster.forEach(p=>{const a=agg[p.id]; rows.push([p.name,p.number,(a.min/60000).toFixed(1),a.goals,a.assists,a.games,a.captain]);});
+  T.roster.forEach(p=>{const a=agg[p.id]; rows.push([p.name,p.number,(a.min/60000).toFixed(1),a.goals,a.assists,a.games,a.captain]);});
   rows.push([]); rows.push(["PairA","PairB","MinTogether"]);
   Object.entries(pairs).sort((x,y)=>y[1]-x[1]).forEach(([k,v])=>{const[a,b]=k.split("|"); rows.push([pName(a),pName(b),(v/60000).toFixed(1)]);});
   download("season_summary.csv", rows.map(csvRow).join("\n"),"text/csv");
@@ -1768,7 +1842,7 @@ function openAttendance(){
   sheet("Who's here today?", sh=>{
     sh.appendChild(el("p","muted small","Tap to toggle. Absent players are hidden from the bench."));
     const list=el("div","plist");
-    S.roster.slice().sort((a,b)=>a.number-b.number).forEach(p=>{
+    T.roster.slice().sort((a,b)=>a.number-b.number).forEach(p=>{
       const it=el("div","pitem"+(isAbsent(p.id)?" absent":"")); it.style.cursor="pointer";
       const sw=el("div","sw",String(p.number)); sw.style.background=p.color; sw.style.color=textOn(p.color);
       it.appendChild(sw);
@@ -1795,11 +1869,11 @@ function openAttendance(){
 //==================================================================
 function saveDefaultLineup(){
   if(!Object.keys(G.onField).length){ toast("Place a lineup first"); return; }
-  S.defaultLineup={formation:G.formation, slots:{...G.onField}};
+  T.defaultLineup={formation:G.formation, slots:{...G.onField}};
   save(); toast("Saved as default lineup");
 }
 function applyDefaultLineup(silent){
-  const d=S.defaultLineup;
+  const d=T.defaultLineup;
   if(!d){ if(!silent)toast("No default lineup saved yet"); return; }
   if(G.started){ if(!silent)toast("Can't change lineup mid-game"); return; }
   pushUndo();
@@ -1834,17 +1908,82 @@ $("#periodBtn").onclick=openPeriodSheet;
 $("#undoBtn").onclick=undo;
 $("#menuBtn").onclick=openMenu;
 
-// ---- Page navigation: Field <-> Game data ----
+// ---- View navigation: game / home / teams ----
+let view="home";
+function setView(v){
+  view=v; S.view=v; save();
+  document.querySelectorAll(".view").forEach(el=>el.classList.toggle("active", el.id===v+"View"));
+  if(v==="home") renderHome();
+  if(v==="teams") renderTeams();
+}
+
+// ---- Page navigation within the game view: Field <-> Game data ----
 let curPage=0, locked=true;
-const PAGE_COUNT=3, PAGE_EL=["#pageField","#pageData","#pageTeam"];
+const PAGE_COUNT=2, PAGE_EL=["#pageField","#pageData"];
 function setPage(i){
   curPage=i;
   $("#pages").style.transform="translateY(-"+(i*100/PAGE_COUNT)+"%)";
-  document.querySelectorAll("#tabbar button").forEach((b,j)=>b.classList.toggle("on", j===i));
+  document.querySelectorAll("#tabbar button[data-page]").forEach(b=>b.classList.toggle("on", +b.dataset.page===i));
+  $("#tabHome").classList.remove("on");
   if(i===1) renderData();
-  if(i===2) renderTeam();
 }
-document.querySelectorAll("#tabbar button").forEach(b=>b.onclick=()=>setPage(+b.dataset.page));
+document.querySelectorAll("#tabbar button[data-page]").forEach(b=>b.onclick=()=>setPage(+b.dataset.page));
+$("#tabHome").onclick=()=>setView("home");
+$("#teamsBtn").onclick=()=>setView("teams");
+$("#teamsClose").onclick=()=>setView("home");
+$("#coachBtn").onclick=()=>{ setView("game"); setPage(0); };
+$("#homeMenuBtn").onclick=openMenu;
+
+// ---- Teams: select / create / archive ----
+function renderTeams(){
+  const c=$("#teamsScroll"); c.innerHTML="";
+  c.appendChild(el("h3",null,"Your teams"));
+  const list=el("div","plist");
+  S.teams.slice().sort((a,b)=>(a.archived-b.archived)).forEach(t=>{
+    const it=el("div","pitem"+(t.archived?" absent":"")); it.style.cursor="pointer";
+    const sw=el("div","sw","⚽"); sw.style.background=SAFE_GREEN; sw.style.color="#06140a"; it.appendChild(sw);
+    const meta=el("div","meta");
+    meta.appendChild(el("div","nm",t.name+(t.archived?" · archived":"")));
+    meta.appendChild(el("div","sub",t.roster.length+" players · "+t.games.length+" games"+(t.id===S.curTeamId?" · current":"")));
+    it.appendChild(meta);
+    const ed=el("button","btn sm ghost","⋯"); ed.onclick=(e)=>{ e.stopPropagation(); openTeamSheet(t.id); }; it.appendChild(ed);
+    it.onclick=()=>selectTeam(t.id);
+    list.appendChild(it);
+  });
+  c.appendChild(list);
+  const add=el("button","btn primary","＋ New team"); add.style.width="100%"; add.style.marginTop="12px";
+  add.onclick=()=>{ const name=prompt("Team name?","New Team"); if(name===null) return; const t=newTeam(name||"New Team"); t.roster=[]; S.teams.push(t); selectTeam(t.id); };
+  c.appendChild(add);
+}
+function selectTeam(id){
+  if(!S.teams.find(t=>t.id===id)) return;
+  S.curTeamId=id; T=currentTeam(); G=curGame(); save();
+  setView("home"); renderAll();
+  toast("Team: "+T.name);
+}
+function openTeamSheet(id){
+  const t=S.teams.find(x=>x.id===id); if(!t) return;
+  sheet("Team settings", sh=>{
+    const f=el("label","fld"); f.appendChild(el("span",null,"Team name"));
+    const i=el("input"); i.value=t.name; i.onchange=()=>{ t.name=i.value.trim()||"Team"; save(); if(t.id===S.curTeamId)$("#homeTeamName").textContent=t.name; };
+    f.appendChild(i); sh.appendChild(f);
+    sh.appendChild(el("p","muted small",t.roster.length+" players · "+t.games.length+" games"));
+    const row=el("div","row"); row.style.marginTop="12px";
+    const arch=el("button","btn grow", t.archived?"Unarchive":"Archive");
+    arch.onclick=()=>{
+      t.archived=!t.archived;
+      if(t.archived && t.id===S.curTeamId){ const other=S.teams.find(x=>!x.archived); if(other){S.curTeamId=other.id;} T=currentTeam(); G=curGame(); }
+      save(); closeSheet(); renderTeams(); renderAll();
+    };
+    row.appendChild(arch);
+    if(S.teams.length>1){
+      const del=el("button","btn","Delete");
+      del.onclick=()=>{ if(confirm("Delete \""+t.name+"\" and ALL its data permanently?")){ S.teams=S.teams.filter(x=>x.id!==t.id); if(S.curTeamId===t.id) S.curTeamId=S.teams[0].id; T=currentTeam(); G=curGame(); save(); closeSheet(); renderTeams(); renderAll(); } };
+      row.appendChild(del);
+    }
+    sh.appendChild(row);
+  });
+}
 $("#lockBtn").onclick=()=>{
   locked=!locked;
   $("#lockBtn").classList.toggle("locked", locked);
@@ -1876,7 +2015,7 @@ window.addEventListener("pointerup",()=>swipe=null);
 // ---- Layout edit mode (drag positions to make a custom formation) ----
 let editing=false, slotDrag=null;
 function startLayoutEdit(){
-  S.customFormation = formSlots().map(s=>s.slice());  // seed from current shape
+  T.customFormation = formSlots().map(s=>s.slice());  // seed from current shape
   G.formation="Custom"; editing=true;
   document.body.classList.add("editing");
   $("#editBanner").classList.remove("hidden");
@@ -1906,7 +2045,7 @@ function onSlotUp(){
   window.removeEventListener("pointermove",onSlotMove);
   window.removeEventListener("pointerup",onSlotUp);
   if(slotDrag && slotDrag.x!=null){
-    const f=S.customFormation.find(s=>s[0]===slotDrag.id);
+    const f=T.customFormation.find(s=>s[0]===slotDrag.id);
     if(f){ f[2]=Math.round(slotDrag.x); f[3]=Math.round(slotDrag.y); save(); }
   }
   slotDrag=null;
@@ -1937,6 +2076,8 @@ setInterval(()=>{
   }
 },1000);
 
+// open to the last screen you were on (game / home / teams)
+setView(["game","home","teams"].includes(S.view) ? S.view : "home");
 renderAll();
 $("#clock").textContent=fmt(gameMs());
 window.addEventListener("beforeunload",save);
