@@ -786,8 +786,7 @@ function periodElapsed(){ return Math.max(0, gameMs()-(G.clock.periodStartMs||0)
 function periodRemaining(){ return periodLenMs()-periodElapsed(); }
 function periodClockText(){
   if(gamePhase()!=="live") return "";
-  const rem=periodRemaining();
-  return rem>=0 ? " · "+fmt(rem)+" left" : " · +"+fmt(-rem);
+  return " · "+fmt(periodElapsed())+" played";   // count UP — how long this half has run
 }
 function toggleClock(){
   const c=G.clock;
@@ -935,7 +934,7 @@ function renderTop(){
   $("#clock").className="clock"+(G.clock.running?" run":"");
   const per=$("#period");
   per.textContent=periodLabel()+periodClockText();
-  per.className="period"+(gamePhase()==="live" && periodRemaining()<0 ? " over":"");
+  per.className="period";
 }
 
 function renderField(){
@@ -2265,7 +2264,6 @@ setInterval(()=>{
   $("#clock").textContent=fmt(gameMs());
   if(G.clock.running){
     const per=$("#period"); per.textContent=periodLabel()+periodClockText();
-    per.className="period"+(gamePhase()==="live" && periodRemaining()<0 ? " over":"");
   }
   if(G.clock.running && !drag){
     // update on-field token timers + heat in place (cheap)
